@@ -1,0 +1,28 @@
+{
+  "enabled": true,
+  "preset": "AnySurface",
+  "logAppliedValues": false,
+  "overrides": {
+    "maxHorizontalMountAngleDotDelta": null,
+    "maxProneMountAngleDotDelta": null,
+    "maxVerticalMountAngleDotDelta": null,
+    "gridMinHeight": null,
+    "gridMaxHeight": null,
+    "edgeDetectionDistance": null,
+    "raycastDistance": null,
+    "horizontalGridSize": null,
+    "horizontalGridStepsAmount": null,
+    "verticalGridSize": null,
+    "verticalGridStepsAmount": null,
+    "secondCheckVerticalGridSizeStepsAmount": null,
+    "secondCheckVerticalGridSize": null,
+    "secondCheckVerticalDistance": null,
+    "secondCheckVerticalGridOffset": null,
+    "pitchHorizontalMin": null,
+    "pitchHorizontalMax": null,
+    "pitchHorizontalBipodMin": null,
+    "pitchHorizontalBipodMax": null,
+    "pitchVerticalMin": null,
+    "pitchVerticalMax": null
+  }
+}
