@@ -62,28 +62,3 @@ Edit `config/config.json` and restart the server:
   client-side checks that don't consult `PointDetectionSettings` at all - namely the raycast layer
   mask used to find a surface, and a separate "does my body fit here" clearance check run both at
   mount-start and continuously while mounted. This mod can't touch either.
-
-## Optional companion: EasyMountingClient
-
-A separate, independent BepInEx client mod (own repo/folder, no dependency between the two) exists
-for the cases above:
-
-- Widens the mount-point raycast layer mask to include `LowPolyCollider`, since some thin/
-  decorative railings only have collision on that layer and are otherwise never hit by the
-  detection raycasts regardless of server-side tolerance.
-- Optionally skips the initial "does my body fit here" clearance check for standing/crouched ledge
-  mounts, at the cost of possibly visible clipping into nearby geometry. Note this only covers the
-  check at mount-start; a separate continuous check while already mounted can still eject the
-  player in a small number of very tight spots, and isn't currently patched.
-
-Its patches target BSG's auto-generated internal class names (`GClass2666`/`GClass2667`), which
-can shift on game updates and may need re-identifying afterwards - the server mod above has no
-such fragility.
-
-## Requirements
-
-SPT ~4.0.0
-
-## License
-
-MIT
