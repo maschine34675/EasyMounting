@@ -18,7 +18,7 @@ public sealed class ConfigService
 
     public EasyMountingConfig Load()
     {
-        var path = Path.Combine(ModFolder, "config", "config.json");
+        var path = Path.Combine(ModFolder, "Config", "config.json");
         if (!File.Exists(path))
         {
             return new EasyMountingConfig();

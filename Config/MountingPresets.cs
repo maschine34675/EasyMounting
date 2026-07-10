@@ -1,7 +1,6 @@
 using SPTarkov.Server.Core.Models.Eft.Common;
 
 namespace EasyMounting.Config;
-
 public static class MountingPresets
 {
     public sealed record Preset(
@@ -26,7 +25,6 @@ public static class MountingPresets
         double PitchHorizontalBipodMax,
         double PitchVerticalMin,
         double PitchVerticalMax);
-
     public static readonly Dictionary<string, Preset> All = new(StringComparer.OrdinalIgnoreCase)
     {
         ["Vanilla"] = new Preset(
@@ -48,7 +46,6 @@ public static class MountingPresets
             PitchHorizontalMin: -15, PitchHorizontalMax: 15,
             PitchHorizontalBipodMin: -20, PitchHorizontalBipodMax: 20,
             PitchVerticalMin: -15, PitchVerticalMax: 15),
-
         ["Relaxed"] = new Preset(
             MaxHorizontalMountAngleDotDelta: 0.55,
             MaxProneMountAngleDotDelta: 0.85,
@@ -68,7 +65,6 @@ public static class MountingPresets
             PitchHorizontalMin: -22, PitchHorizontalMax: 22,
             PitchHorizontalBipodMin: -28, PitchHorizontalBipodMax: 28,
             PitchVerticalMin: -20, PitchVerticalMax: 20),
-
         ["Loose"] = new Preset(
             MaxHorizontalMountAngleDotDelta: 0.35,
             MaxProneMountAngleDotDelta: 0.65,
@@ -88,7 +84,6 @@ public static class MountingPresets
             PitchHorizontalMin: -30, PitchHorizontalMax: 30,
             PitchHorizontalBipodMin: -38, PitchHorizontalBipodMax: 38,
             PitchVerticalMin: -26, PitchVerticalMax: 26),
-
         ["AnySurface"] = new Preset(
             MaxHorizontalMountAngleDotDelta: 0.05,
             MaxProneMountAngleDotDelta: 0.30,
@@ -102,14 +97,13 @@ public static class MountingPresets
             VerticalGridSize: 1.5,
             VerticalGridStepsAmount: 160,
             SecondCheckVerticalGridSizeStepsAmount: 40,
-            SecondCheckVerticalGridSize: 0.5,
+            SecondCheckVerticalGridSize: 0.15,
             SecondCheckVerticalDistance: 0.5,
             SecondCheckVerticalGridOffset: 0.05,
             PitchHorizontalMin: -40, PitchHorizontalMax: 40,
             PitchHorizontalBipodMin: -50, PitchHorizontalBipodMax: 50,
             PitchVerticalMin: -34, PitchVerticalMax: 34),
     };
-
     public static Preset WithOverrides(Preset basePreset, MountingOverrides? overrides)
     {
         if (overrides == null)
@@ -161,7 +155,6 @@ public static class MountingPresets
         target.SecondCheckVerticalDistance = preset.SecondCheckVerticalDistance;
         target.SecondCheckVerticalGridOffset = preset.SecondCheckVerticalGridOffset;
     }
-
     public static void ApplyMovement(MountingMovementSettings target, Preset preset)
     {
         target.PitchLimitHorizontal = new XYZ { X = preset.PitchHorizontalMin, Y = preset.PitchHorizontalMax, Z = 0 };

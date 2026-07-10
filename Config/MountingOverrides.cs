@@ -1,5 +1,4 @@
 namespace EasyMounting.Config;
-
 public sealed class MountingOverrides
 {
     public double? MaxHorizontalMountAngleDotDelta { get; set; }

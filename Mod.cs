@@ -23,11 +23,14 @@ public class Mod(ConfigService configService, DatabaseService databaseService, I
         if (!MountingPresets.All.TryGetValue(config.Preset, out var preset))
         {
             logger.Warning(
-                $"[EasyMounting] Unknown preset '{config.Preset}', falling back to 'Vanilla'. " +
+                $"[EasyMounting] Unknown preset '{config.Preset}', leaving mounting settings untouched. " +
                 $"Valid presets: {string.Join(", ", MountingPresets.All.Keys)}");
-            preset = MountingPresets.All["Vanilla"];
+            return Task.CompletedTask;
         }
 
+        var hasOverrides = config.Overrides != null && typeof(MountingOverrides)
+            .GetProperties()
+            .Any(p => p.GetValue(config.Overrides) != null);
         preset = MountingPresets.WithOverrides(preset, config.Overrides);
 
         var mountingSettings = databaseService.GetGlobals().Configuration.MountingSettings;
@@ -35,23 +38,12 @@ public class Mod(ConfigService configService, DatabaseService databaseService, I
         MountingPresets.Apply(pointDetection, preset);
         MountingPresets.ApplyMovement(mountingSettings.MovementSettings, preset);
 
-        var overrideNote = config.Overrides != null ? " (with overrides)" : "";
+        var overrideNote = hasOverrides ? " (with overrides)" : "";
         logger.LogWithColor($"[EasyMounting] Applied preset '{config.Preset}'{overrideNote} to weapon mounting surface detection.", LogTextColor.Green);
 
         if (config.LogAppliedValues)
         {
-            logger.Info(
-                "[EasyMounting] HorizontalDot=" + pointDetection.MaxHorizontalMountAngleDotDelta +
-                " ProneDot=" + pointDetection.MaxProneMountAngleDotDelta +
-                " VerticalDot=" + pointDetection.MaxVerticalMountAngleDotDelta +
-                " GridHeight=[" + pointDetection.GridMinHeight + ", " + pointDetection.GridMaxHeight + "]" +
-                " RaycastDistance=" + pointDetection.RaycastDistance +
-                " EdgeDetectionDistance=" + pointDetection.EdgeDetectionDistance +
-                " VerticalGridStepsAmount=" + pointDetection.VerticalGridStepsAmount +
-                " SecondCheck[Offset=" + pointDetection.SecondCheckVerticalGridOffset +
-                " Size=" + pointDetection.SecondCheckVerticalGridSize +
-                " Steps=" + pointDetection.SecondCheckVerticalGridSizeStepsAmount +
-                " Distance=" + pointDetection.SecondCheckVerticalDistance + "]");
+            logger.Info("[EasyMounting] Effective values: " + preset);
         }
 
         return Task.CompletedTask;
