@@ -157,6 +157,14 @@ together" below.
 | `SynthesizeThinRailPoints` | `true` | When the vanilla scan finds nothing at all, re-runs it and synthesizes a mount point for paper-thin colliders. Some railings ("metalthin") have collision as a zero-thickness vertical sheet: forward rays hit the front face fine, but the downward probes that normally locate a top *surface* have nothing to land on - there is no surface, just an edge. Vanilla can never mount there, period. This anchors the weapon on that front-face top edge instead. Weapon placement on such rails may look slightly off. |
 | `SkipRotationOverlapCheck` | `true` | While mounted, horizontal aiming normally predicts whether the resulting body shift would overlap geometry and blocks the rotation if so. At spots you only reached via `SkipClipCheck`, that prediction reports overlap permanently, freezing horizontal aim completely (vertical aim is unaffected - it doesn't shift the body sideways). This skips the prediction while mounted, restoring horizontal aim; the body may visibly rotate through the clipped geometry. |
 
+### Support
+
+| Setting | Default | What it does |
+|---|---|---|
+| `GenerateSupportPackage` | *unbound* | Hotkey that collects everything needed for a bug report into one zip - see "Reporting issues" below. Unbound by default (most players never need it, and a default key would likely collide with another mod); set one yourself in the F12 config manager. If `DebugMountLogging` is off, the first press arms it and waits `CaptureWindowSeconds` so you can reproduce the issue with mount traces included; press again during that window to capture immediately. |
+| `CaptureWindowSeconds` | `15` (range 3-120) | How long to wait after arming debug logging before packaging. Only applies when `DebugMountLogging` was off at the time you pressed the hotkey. |
+| `CleanupOldPackages` | `true` | Delete previous `EasyMounting-Support-*.zip` files after creating a new one, so the folder never ends up with several packages and no clue which one to attach. |
+
 ### Debug
 
 | Setting | Default | What it does |
@@ -185,6 +193,38 @@ mount attempt:
 turn it on first when a spot still doesn't work.
 
 ---
+
+## Reporting issues
+
+The support hotkey is unbound by default - set one under `Support` in the F12 config manager
+(`GenerateSupportPackage`), then press it while the game is running.
+
+- If `DebugMountLogging` is already on, the package is generated immediately.
+- Otherwise the first press **arms** debug logging and gives you `CaptureWindowSeconds` (default
+  15s) to reproduce the mount issue - press the hotkey again to capture right away instead of
+  waiting out the timer. Either way, `DebugMountLogging` is switched back off automatically once
+  the package is written, so you don't need to remember to turn it off again.
+
+The mod collects everything a bug report needs into a single zip under
+`<GameRoot>/EasyMounting-Support/` and opens Explorer with the file selected. The package contains:
+`BepInEx/LogOutput.log`, both EasyMounting configs (client `.cfg` and, when a local server is
+installed, the server `config.json`), the newest SPT server logs, and a generated `summary.txt`
+with your loaded plugin list plus the mounting settings the server actually delivered to the
+client. Missing sources (e.g. no local server on Fika clients) are skipped and noted in the
+summary. The hotkey works with movement keys held, so you can press it right after reproducing a
+problem.
+
+The zip's own archive comment is set to the readme text, so WinRAR and 7-Zip display it
+automatically when the file is opened - no need to extract anything to see what's inside or how to
+share it.
+
+**To share the package:** upload the zip to a temporary file-sharing service such as
+[wormhole.app](https://wormhole.app/) and post the resulting link in your Forge comment or Discord
+report. By default, generating a new package deletes older ones in the same folder
+(`CleanupOldPackages`), so there's never more than one file to wonder about.
+
+**Privacy note:** game and server logs can contain your in-game profile name and installed mod
+list. Review the files before posting the zip publicly.
 
 ## Installation
 

@@ -1,7 +1,10 @@
+using System.Collections;
 using BepInEx;
 using BepInEx.Configuration;
 using BepInEx.Logging;
 using EasyMountingClient.Patches;
+using SPT.Reflection.Patching;
+using UnityEngine;
 
 namespace EasyMountingClient
 {
@@ -10,9 +13,10 @@ namespace EasyMountingClient
     {
         public const string PluginGuid = "com.maschine.EasyMounting";
         public const string PluginName = "maschine-EasyMounting";
-        public const string PluginVersion = "1.1.0";
+        public const string PluginVersion = "1.2.0";
 
         public static ManualLogSource Log;
+        internal static ConfigFile BoundConfig;
         public static ConfigEntry<bool> Enabled;
         public static ConfigEntry<bool> IncludeLowPolyCollider;
         public static ConfigEntry<bool> IncludeDoorCollider;
@@ -21,11 +25,19 @@ namespace EasyMountingClient
         public static ConfigEntry<float> ReachToleranceMeters;
         public static ConfigEntry<bool> SynthesizeThinRailPoints;
         public static ConfigEntry<bool> SkipRotationOverlapCheck;
+        public static ConfigEntry<KeyboardShortcut> GenerateSupportPackage;
+        public static ConfigEntry<float> CaptureWindowSeconds;
+        public static ConfigEntry<bool> CleanupOldPackages;
         public static ConfigEntry<bool> DebugMountLogging;
+
+        private int _patchesApplied;
+        private int _patchesTotal;
+        private Coroutine _captureRoutine;
 
         private void Awake()
         {
             Log = Logger;
+            BoundConfig = Config;
 
             Enabled = Config.Bind("General", "Enabled", true,
                 "Widen the raycast layer mask used to find ledge/railing mounting points (mounting without bipod ground contact).");
@@ -64,91 +76,126 @@ namespace EasyMountingClient
                 "would overlap geometry, and blocks the rotation if so. At clipped-in spots (see SkipClipCheck) " +
                 "that check reports overlap permanently, freezing horizontal aim. Skipping it restores horizontal " +
                 "aim there; the body may visibly rotate through the clipped geometry.");
+            GenerateSupportPackage = Config.Bind("Support", "GenerateSupportPackage", new KeyboardShortcut(KeyCode.None),
+                "Unbound by default - most players never need this, and a default key is likely to already be " +
+                "taken by another mod or the game itself. Set a key here (F12 config manager) if you want to " +
+                "generate a support package: it collects LogOutput.log, both EasyMounting configs, the newest " +
+                "SPT server log and a summary of loaded plugins and active mounting settings into a zip under " +
+                "<GameRoot>/EasyMounting-Support/, then opens Explorer with the zip selected - attach that file " +
+                "when reporting issues. If DebugMountLogging is currently off, the first press arms it and waits " +
+                "CaptureWindowSeconds so you can reproduce the issue with mount traces included; press the " +
+                "hotkey again during that window to capture immediately instead of waiting it out.");
+            CaptureWindowSeconds = Config.Bind("Support", "CaptureWindowSeconds", 15f,
+                new ConfigDescription(
+                    "How long (seconds) to wait after arming debug logging before packaging, giving you time to " +
+                    "reproduce the mount issue. Only applies when DebugMountLogging was off at the time you " +
+                    "pressed the hotkey - if it's already on, the package is generated immediately.",
+                    new AcceptableValueRange<float>(3f, 120f)));
+            CleanupOldPackages = Config.Bind("Support", "CleanupOldPackages", true,
+                "Delete previous EasyMounting-Support-*.zip files after creating a new one, so the folder never " +
+                "ends up with several packages that are unclear which one to actually attach to a report.");
             DebugMountLogging = Config.Bind("Debug", "DebugMountLogging", false,
                 "Trace every mount attempt to the BepInEx log: surface scan result, validation result, computed " +
                 "player stand position, and - on every mount exit - the remaining distance to that position plus " +
                 "which code path triggered the exit. Used to diagnose spots that refuse to mount.");
 
+            EnablePatch(new WidenMountLayerMaskPatch(), "the mount layer mask fix is NOT active");
+            EnablePatch(new NormalizeMountAnchorPatch(), "swapped weapon mounting anchors stay broken");
+            EnablePatch(new SkipMountClipCheckPatch(), "the clip-check bypass is NOT active");
+            EnablePatch(new SkipRotationOverlapPatch(), "horizontal aim at clipped spots stays locked");
+            EnablePatch(new ReachToleranceUpdatePatch(), "the reach-tolerance override is NOT active");
+            EnablePatch(new ReachToleranceApproachPatch(), "the reach-tolerance override and safe snap are NOT active");
+            EnablePatch(new StandingScanMarkerPatch(), "thin-rail synthesis may misfire after prone scans");
+            EnablePatch(new ProneScanMarkerPatch(), "thin-rail synthesis may misfire after prone scans");
+            EnablePatch(new ThinRailSynthesisPatch(), "thin-rail mount synthesis is NOT active");
+            EnablePatch(new DebugPointFoundPatch(), "mount debug logging is incomplete");
+            EnablePatch(new DebugNoPointFoundPatch(), "mount debug logging is incomplete");
+            EnablePatch(new DebugValidatePointPatch(), "mount debug logging is incomplete");
+            EnablePatch(new DebugEnterMountPatch(), "mount debug logging is incomplete");
+            EnablePatch(new DebugStartExitMountPatch(), "mount debug logging is incomplete");
+            EnablePatch(new DebugExitMountPatch(), "mount debug logging is incomplete");
+            EnablePatch(new DebugMountAnchorPatch(), "mount debug logging is incomplete");
+
+            if (_patchesApplied == _patchesTotal)
+            {
+                Log.LogInfo($"{PluginName} v{PluginVersion} active, {_patchesApplied}/{_patchesTotal} patches applied.");
+            }
+            else
+            {
+                Log.LogWarning($"{PluginName} v{PluginVersion} active with FAILURES: only {_patchesApplied}/{_patchesTotal} patches applied - see errors above.");
+            }
+        }
+
+        private void Update()
+        {
+            if (GenerateSupportPackage == null)
+            {
+                return;
+            }
+            var shortcut = GenerateSupportPackage.Value;
+            if (shortcut.MainKey == KeyCode.None || !Input.GetKeyDown(shortcut.MainKey))
+            {
+                return;
+            }
+            foreach (var modifier in shortcut.Modifiers)
+            {
+                if (!Input.GetKey(modifier))
+                {
+                    return;
+                }
+            }
+
+            OnSupportHotkeyPressed();
+        }
+
+        private void OnSupportHotkeyPressed()
+        {
+            if (_captureRoutine != null)
+            {
+                StopCoroutine(_captureRoutine);
+                _captureRoutine = null;
+                FinishArmedCapture();
+                return;
+            }
+
+            if (DebugMountLogging.Value)
+            {
+                SupportPackage.Generate();
+                return;
+            }
+
+            DebugMountLogging.Value = true;
+            Log.LogInfo(
+                $"[EasyMounting] Debug logging armed for the support package - try to reproduce the mount issue " +
+                $"now. Capturing automatically in {CaptureWindowSeconds.Value:F0}s, or press " +
+                $"{GenerateSupportPackage.Value} again to capture immediately.");
+            _captureRoutine = StartCoroutine(CaptureAfterDelay());
+        }
+
+        private IEnumerator CaptureAfterDelay()
+        {
+            yield return new WaitForSeconds(CaptureWindowSeconds.Value);
+            _captureRoutine = null;
+            FinishArmedCapture();
+        }
+        private void FinishArmedCapture()
+        {
+            SupportPackage.Generate();
+            DebugMountLogging.Value = false;
+        }
+        private void EnablePatch(ModulePatch patch, string onFailure)
+        {
+            _patchesTotal++;
             try
             {
-                new WidenMountLayerMaskPatch().Enable();
-                Log.LogDebug("WidenMountLayerMaskPatch registered successfully.");
+                patch.Enable();
+                _patchesApplied++;
+                Log.LogDebug(patch.GetType().Name + " registered successfully.");
             }
             catch (System.Exception ex)
             {
-                Log.LogError("Failed to register WidenMountLayerMaskPatch - the mount layer mask fix is NOT active: " + ex);
+                Log.LogError($"Failed to register {patch.GetType().Name} - {onFailure}: {ex}");
             }
-
-            try
-            {
-                new NormalizeMountAnchorPatch().Enable();
-                Log.LogDebug("NormalizeMountAnchorPatch registered successfully.");
-            }
-            catch (System.Exception ex)
-            {
-                Log.LogError("Failed to register NormalizeMountAnchorPatch - swapped weapon mounting anchors stay broken: " + ex);
-            }
-
-            try
-            {
-                new SkipMountClipCheckPatch().Enable();
-                Log.LogDebug("SkipMountClipCheckPatch registered successfully.");
-            }
-            catch (System.Exception ex)
-            {
-                Log.LogError("Failed to register SkipMountClipCheckPatch - the clip-check bypass is NOT active: " + ex);
-            }
-
-            try
-            {
-                new SkipRotationOverlapPatch().Enable();
-                Log.LogDebug("SkipRotationOverlapPatch registered successfully.");
-            }
-            catch (System.Exception ex)
-            {
-                Log.LogError("Failed to register SkipRotationOverlapPatch - horizontal aim at clipped spots stays locked: " + ex);
-            }
-
-            try
-            {
-                new ReachToleranceUpdatePatch().Enable();
-                new ReachToleranceApproachPatch().Enable();
-                Log.LogDebug("ReachTolerance patches registered successfully.");
-            }
-            catch (System.Exception ex)
-            {
-                Log.LogError("Failed to register ReachTolerance patches - the reach-tolerance override is NOT active: " + ex);
-            }
-
-            try
-            {
-                new StandingScanMarkerPatch().Enable();
-                new ProneScanMarkerPatch().Enable();
-                new ThinRailSynthesisPatch().Enable();
-                Log.LogDebug("ThinRailSynthesis patches registered successfully.");
-            }
-            catch (System.Exception ex)
-            {
-                Log.LogError("Failed to register ThinRailSynthesis patches - thin-rail mount synthesis is NOT active: " + ex);
-            }
-
-            try
-            {
-                new DebugPointFoundPatch().Enable();
-                new DebugNoPointFoundPatch().Enable();
-                new DebugValidatePointPatch().Enable();
-                new DebugEnterMountPatch().Enable();
-                new DebugStartExitMountPatch().Enable();
-                new DebugExitMountPatch().Enable();
-                new DebugMountAnchorPatch().Enable();
-                Log.LogDebug("Mount debug logging patches registered successfully.");
-            }
-            catch (System.Exception ex)
-            {
-                Log.LogError("Failed to register mount debug logging patches: " + ex);
-            }
-
-            Log.LogInfo($"{PluginName} v{PluginVersion} loaded.");
         }
     }
 }
